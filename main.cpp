@@ -9,11 +9,14 @@
 #include <format> // C++20 formatted output
 #include <chrono> // for time
 #include <thread> // for threading
+#include "magic_enum.hpp" // automatic enum-to-string
 
 // structures to log events in field hockey matches
 
 enum class CardType { Green, Yellow, Red };
 // CardType::Green or CardType::Yellow or CardType::Red. Typesafe
+
+
 
 class Team {
     private: // underscores distinguish private member variables from local variables
@@ -25,20 +28,19 @@ class Team {
         int penalty_corners_ = 0;
 
     public:
-        explicit Team(std::string name) :
-            name_(std::move(name)) {}
-        // "Create a Team from a string. Do not allow implicit conversion. Efficiently move the string data into the private member name_, and do nothing else."
+        explicit Team(std::string name) : name_(std::move(name)) {}
+        // "Create a Team from a string. Do not allow implicit conversion.
+        // Efficiently move the string data into the private member name_, and do nothing else."
         
-        // --------------------- Const getters (public interface) ---------------------
-        const std::string& name() const { return name_; } // returns reference to the internal string
-        int goals() const { return goals_; }
-        int greenCards() const { return green_cards_; }
-        int yellowCards() const { return yellow_cards_; }
-        int redCards() const { return red_cards_; }
-        int penaltyCorners() const { return penalty_corners_; }
+        const std::string& name() const     { return name_; }
+        int goals() const                   { return goals_; }
+        int greenCards() const              { return green_cards_; }
+        int yellowCards() const             { return yellow_cards_; }
+        int redCards() const                { return red_cards_; }
+        int penaltyCorners() const          { return penalty_corners_; }
     
-        // --------------------- Actions that modify state ---------------------
-        void scoreGoal() { ++goals_; }
+        void scoreGoal()                    { ++goals_; }
+        
         void awardCard(CardType type) {
             switch (type) {
                 case CardType::Green: ++green_cards_; break;
@@ -50,7 +52,7 @@ class Team {
                     throw std::invalid_argument("Invalid CardType passed to awardCard");
             }
         }
-        void awardPenaltyCorner() { ++penalty_corners_; }
+        void awardPenaltyCorner()           { ++penalty_corners_; }
 
         // formatted summary:
         std::string statsLine() const {
@@ -70,9 +72,7 @@ class MatchEvent {
     public:
         // constructor:
         MatchEvent(int quarter, std::string description) :
-            // initializer list:
-            quarter_(quarter),
-            description_(std::move(description)) {}
+            quarter_(quarter), description_(std::move(description)) {}
 
         std::string toString() const {
             return std::format("Q{} - {}", quarter_, description_);
@@ -81,7 +81,7 @@ class MatchEvent {
 
 
 // -----------------------------------------------------------------------------
-// Main class orchestrating the entire match
+// HockeyMatch class – core match orchestration
 // -----------------------------------------------------------------------------
 class HockeyMatch {
     private:
@@ -95,32 +95,50 @@ class HockeyMatch {
             // emplace_back constructs MatchEvent in-place → efficient
         }
 
+        void awardCard(Team& team, CardType type) {
+            team.awardCard(type);
+
+            // Automatic display name from enum using magic_enum
+            std::string card_name = std::string(magic_enum::enum_name(type));
+
+            log(card_name + " card - " + team.name());
+        }
+
+        void awardPenaltyCorner(Team& team) {
+            team.awardPenaltyCorner();
+            log("Penalty corner - " + team.name());
+        }
+
+        void scoreGoalFor(Team& team) {
+            team.scoreGoal();
+            log(team.name() + " goal!");
+        }
+
     public:
         // Constructor initializes the two teams
         HockeyMatch(std::string home_name, std::string away_name) : 
             home_team_(std::move(home_name)), away_team_(std::move(away_name)) {
                 std::cout << "Created home team and away team" << std::endl;
-                };
+            };
+
         // --------------------- Const accessors ---------------------
-        const Team& home() const                        { return home_team_; }
-        const Team& away() const                        { return away_team_; }
-        int quarter() const                             { return current_quarter_; }
-        const std::vector<MatchEvent>& events() const   { return event_log_; }
+        const Team& home() const                            { return home_team_; }
+        const Team& away() const                            { return away_team_; }
+        int quarter() const                                 { return current_quarter_; }
+        const std::vector<MatchEvent>& events() const       { return event_log_; }
 
         // --------------------- Game actions ---------------------
-        void goalForHome() {
-            home_team_.scoreGoal();
-            log(home_team_.name() + " goal!");
-        }
-        void goalForAway() {
-            away_team_.scoreGoal();
-            log(away_team_.name() + " goal!");
-        }
-        void cardForHome() {}
-        void cardForAway() {}
 
-        void penaltyCornerForHome() {}
-        void penaltyCornerForAway() {}
+        void goalForHome() { scoreGoalFor(home_team_); }
+        void goalForAway() { scoreGoalFor(away_team_); }
+
+
+        void cardForHome(CardType type)  { awardCard(home_team_, type); }
+        void cardForAway(CardType type)  { awardCard(away_team_, type); }
+
+        void penaltyCornerForHome()      { awardPenaltyCorner(home_team_); }
+        void penaltyCornerForAway()      { awardPenaltyCorner(away_team_); }
+
 
         // Returns false when match is over (after quarter 4)
         bool nextQuarter() {
