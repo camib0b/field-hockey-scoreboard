@@ -20,9 +20,7 @@ This project combines my passion for field hockey with professional software eng
 
 ## Demo Screenshot
 
-![Console Demo](https://learn.microsoft.com/en-us/cpp/build/media/vs2019-hello-world-code.png?view=msvc-170)
-
-*(Sample console output – your actual match will look similar with scoreboard and events)*
+to be added
 
 ## How to Build & Run (macOS / Linux)
 
