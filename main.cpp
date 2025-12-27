@@ -21,7 +21,6 @@ constexpr int TOTAL_QUARTERS = 4;
 
 enum class CardType : unsigned char { Green = 0, Yellow = 1, Red = 2, Count };
 
-
 constexpr std::string_view cardName(CardType type) noexcept {
     switch (type) {
         case CardType::Green:  return "Green";
