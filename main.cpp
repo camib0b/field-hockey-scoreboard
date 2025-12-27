@@ -12,6 +12,7 @@
 #include <array>
 #include <limits> // bulletproof against input garbage
 #include "magic_enum.hpp"  // Header-only library for automatic enum-to-string
+#include <cstdlib>  // for std::system
 
 enum class CardType { Green, Yellow, Red }; // CardType::Green etc. strongly-typed enum.
 
@@ -57,13 +58,8 @@ class Team {
         void awardPenaltyCorner()   { ++penalty_corners_; }
 
         void receiveCard(CardType type) {
-            auto index = magic_enum::enum_index(type);
-
-            if (index.has_value()) {
-                ++card_counts_[index.value()];
-            } else {
-                throw std::invalid_argument("Invalid CardType");
-            }
+            auto index = magic_enum::enum_index(type).value();  // .value() asserts it exists
+            ++card_counts_[index.value()];
         }
 
         // formatted summary:
@@ -203,10 +199,13 @@ class HockeyMatch {
 };
 
 // display things
-void clearScreen() {
-    std::cout << "\x1B[2J\x1B[H";  // ANSI escape code – works on macOS, Linux, most terminals
-}
-
+void clearScreen() { // detects platform
+    #ifdef _WIN32
+        std::system("cls");
+    #else
+        std::cout << "\x1B[2J\x1B[H";
+    #endif
+    }
 
 int main() {
     std::cout << "🏑 Welcome to Field Hockey Scoreboard Simulator 🏑\n\n";

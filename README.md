@@ -47,3 +47,18 @@ c++ -std=c++20 -Wall -Wextra -pedantic -O2 main.cpp -o hockey_scoreboard
 - Highly readable, maintainable, and extensible
 - Ready for future features (real-time clock, players, saving matches)
 - ignoreLine() after every std::cin >> var_name
+
+## Requirements & Portability
+
+This simulator uses modern C++20 features for clean code and nice output:
+
+- **C++20 compiler** required (GCC 13+, Clang 14+, MSVC 19.29+)
+- `<format>` for readable string formatting
+- Terminal that supports ANSI escape codes (recommended: macOS Terminal, Linux terminal, Windows Terminal, or Git Bash)
+- On old Windows `cmd.exe`, screen clearing uses `cls`
+
+Emoji 🏑 may appear as squares on very old terminals — cosmetic only.
+
+Compile with:
+```bash
+c++ -std=c++20 -Wall -Wextra -pedantic -O2 main.cpp -o hockey_scoreboard
