@@ -46,3 +46,4 @@ c++ -std=c++20 -Wall -Wextra -pedantic -O2 main.cpp -o hockey_scoreboard
 - Const-correctness, move semantics, exhaustive switches
 - Highly readable, maintainable, and extensible
 - Ready for future features (real-time clock, players, saving matches)
+- ignoreLine() after every std::cin >> var_name

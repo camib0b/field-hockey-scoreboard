@@ -10,9 +10,16 @@
 #include <chrono> // for time
 #include <thread> // for threading
 #include <array>
+#include <limits> // bulletproof against input garbage
 #include "magic_enum.hpp"  // Header-only library for automatic enum-to-string
 
 enum class CardType { Green, Yellow, Red }; // CardType::Green etc. strongly-typed enum.
+
+// Helpers
+void ignoreLine() {
+    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+}
+
 
 // -----------------------------------------------------------------------------
 // Team class – encapsulates team state and behavior
@@ -121,8 +128,14 @@ class HockeyMatch {
 
 
     public:
-        HockeyMatch(std::string home_name, std::string away_name) : 
-            home_team_(std::move(home_name)), away_team_(std::move(away_name)) {};
+
+    // constructor:
+    HockeyMatch(std::string home_name, std::string away_name)
+        : home_team_(std::move(home_name)),
+        away_team_(std::move(away_name)),
+        current_quarter_(1)  // explicitly initialize (good practice)
+            { log("=== Start of Q1 ==="); }
+
 
         // --------------------- Const accessors ---------------------
         const Team& home() const                            { return home_team_; }
@@ -143,11 +156,20 @@ class HockeyMatch {
 
         // Returns false when match is over (after quarter 4)
         bool nextQuarter() {
+            if (current_quarter_ > 4) {
+                return false;
+            }
+        
+            // Always log the end of the current quarter
+            log("=== End of Q" + std::to_string(current_quarter_) + " ===");
+        
             if (current_quarter_ < 4) {
                 ++current_quarter_;
-                log("=== End of Q" + std::to_string(current_quarter_ - 1) + " ===");
+                log("=== Start of Q" + std::to_string(current_quarter_) + " ===");
                 return true;
             }
+        
+            // After Q4 ends, match is over — no start of Q5
             return false;
         }
 
@@ -185,6 +207,7 @@ void clearScreen() {
     std::cout << "\x1B[2J\x1B[H";  // ANSI escape code – works on macOS, Linux, most terminals
 }
 
+
 int main() {
     std::cout << "🏑 Welcome to Field Hockey Scoreboard Simulator 🏑\n\n";
 
@@ -196,7 +219,10 @@ int main() {
 
     HockeyMatch match(std::move(home_name), std::move(away_name));
 
-    while (match.quarter() <= 4) {
+
+    bool match_in_progress = true;
+
+    while (match.quarter() <= 4 && match_in_progress) {
         clearScreen();
         match.printScoreboard();
 
@@ -215,12 +241,12 @@ int main() {
         int choice;
         if (!(std::cin >> choice)) {
             std::cin.clear();
-            std::cin.ignore(10000, '\n');
+            ignoreLine()
             std::cout << "Invalid input. Please enter a number.\n";
             std::this_thread::sleep_for(std::chrono::seconds(1));
             continue;
         }
-        std::cin.ignore();  // consume newline after number
+        ignoreLine();
 
         switch (choice) {
             case 1:
@@ -234,7 +260,7 @@ int main() {
                 std::cout << "For which team? (h = " << match.home().name()
                           << ", a = " << match.away().name() << "): ";
                 std::cin >> side;
-                std::cin.ignore();
+                ignoreLine();
 
                 CardType type;
                 if (choice == 3) type = CardType::Green;
@@ -255,7 +281,7 @@ int main() {
                 char side;
                 std::cout << "For which team? (h/a): ";
                 std::cin >> side;
-                std::cin.ignore();
+                ignoreLine();
 
                 if (side == 'h' || side == 'H')
                     match.penaltyCornerForHome();
@@ -281,19 +307,19 @@ int main() {
             case 9:
                 std::cout << "Ending match early...\n";
                 std::this_thread::sleep_for(std::chrono::seconds(1));
-                goto end_match;
+                match_in_progress = false;  // clean exit
+                break;
             default:
                 std::cout << "Invalid choice. Please try again.\n";
                 std::this_thread::sleep_for(std::chrono::seconds(1));
         }
     }
 
-end_match:
-    clearScreen();
-    std::cout << "\n=== FINAL RESULT ===\n";
-    match.printScoreboard();
-    match.printEventLog();
-    std::cout << "Match ended. Thank you for using the Field Hockey Scoreboard Simulator!\n\n";
+clearScreen();
+std::cout << "\n=== FINAL RESULT ===\n";
+match.printScoreboard();
+match.printEventLog();
+std::cout << "Match ended. Thank you for using the Field Hockey Scoreboard Simulator!\n\n";
 
-    return 0;
+return 0;
 }
