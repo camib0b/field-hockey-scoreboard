@@ -35,3 +35,14 @@ c++ -std=c++20 -Wall -Wextra -pedantic -O2 main.cpp -o hockey_scoreboard
 - Video analysis integration with OpenCV (player/ball tracking)
 - Performance-critical modules in C++ for sports analytics
 - Potential GUI version (Qt or ncurses)
+
+
+# discussed & implemented code improvements
+- Clean, professional OOP design
+- Perfect naming symmetry with domain-accurate verbs (goalFor..., cardFor..., penaltyCornerFor...)
+- Unified private methods (scoreGoalFor, showCardFor, awardPenaltyCornerFor)
+- Automatic card names via magic_enum (zero maintenance)
+- DRY principle strictly applied
+- Const-correctness, move semantics, exhaustive switches
+- Highly readable, maintainable, and extensible
+- Ready for future features (real-time clock, players, saving matches)
