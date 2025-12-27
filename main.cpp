@@ -45,7 +45,11 @@ class Team {
 
         // per-card getters:
         int cardCount(CardType type) const {
-            return card_counts_[magic_enum::enum_index(type).value()];  // .value() safe due to exhaustive enum
+            auto index_opt = magic_enum::enum_index(type);
+            if (!index_opt.has_value()) { // defensive strategery. not compulsory.
+                throw std::invalid_argument("Invalid CardType in cardCount");
+            }
+            return card_counts_[index_opt.value()];
         }
 
         int greenCards() const                      { return cardCount(CardType::Green); }
