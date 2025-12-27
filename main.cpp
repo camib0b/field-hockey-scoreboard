@@ -5,16 +5,33 @@
 #include <iostream> // for input and output
 #include <string> // for strings
 #include <vector> // for vectors
-#include <random> // for random numbers
 #include <format> // C++20 formatted output
 #include <chrono> // for time
 #include <thread> // for threading
 #include <array>
 #include <limits> // bulletproof against input garbage
-#include "magic_enum.hpp"  // Header-only library for automatic enum-to-string
 #include <cstdlib>  // for std::system
+#include <string_view>
+#include <sstream>
+#include <stdexcept>
+#include <utility>
 
-enum class CardType { Green, Yellow, Red }; // CardType::Green etc. strongly-typed enum.
+
+constexpr int TOTAL_QUARTERS = 4;
+
+enum class CardType : unsigned char { Green = 0, Yellow = 1, Red = 2, Count };
+
+
+constexpr std::string_view cardName(CardType type) noexcept {
+    switch (type) {
+        case CardType::Green:  return "Green";
+        case CardType::Yellow: return "Yellow";
+        case CardType::Red:    return "Red";
+        case CardType::Count:  break;
+    }
+    return "Unknown";
+}
+
 
 // Helpers
 void ignoreLine() {
@@ -28,49 +45,43 @@ void ignoreLine() {
 class Team {
     private: // underscores distinguish private member variables from local variables
         std::string name_;
-        int goals_ = 0;
-       
-        // one counter per card type. CardType values are contiguous starting from 0.
-        std::array<int, magic_enum::enum_count<CardType>()> card_counts_{};  // all zero-initialized        
-        
-        int penalty_corners_ = 0;
+        int goals_ = 0, green_ = 0, yellow_ = 0, red_ = 0, penalty_corners_ = 0;
 
     public:
         explicit Team(std::string name) : name_(std::move(name)) {}
         // "Create a Team from a string. Do not allow implicit conversion.
         
-        const std::string& name() const             { return name_; }
-        int goals() const                           { return goals_; }
-        int penaltyCorners() const                  { return penalty_corners_; }
+        const std::string& name() const noexcept    { return name_; }
+        int goals() const noexcept                  { return goals_; }
+        int penaltyCorners() const noexcept         { return penalty_corners_; }
 
-        // per-card getters:
-        int cardCount(CardType type) const {
-            auto index_opt = magic_enum::enum_index(type);
-            if (!index_opt.has_value()) { // defensive strategery. not compulsory.
-                throw std::invalid_argument("Invalid CardType in cardCount");
-            }
-            return card_counts_[index_opt.value()];
-        }
-
-        int greenCards() const                      { return cardCount(CardType::Green); }
-        int yellowCards() const                     { return cardCount(CardType::Yellow); }
-        int redCards() const                        { return cardCount(CardType::Red); }
+        int greenCards() const noexcept             { return green_; }
+        int yellowCards() const noexcept            { return yellow_; }
+        int redCards() const noexcept               { return red_; }
     
 
         // actions - state changes
-        void scoreGoal()            { ++goals_; }
-        void awardPenaltyCorner()   { ++penalty_corners_; }
+        void scoreGoal() noexcept { ++goals_; }
+        void awardPenaltyCorner() noexcept { ++penalty_corners_; }
 
-        void receiveCard(CardType type) {
-            auto index = magic_enum::enum_index(type).value();  // .value() asserts it exists
-            ++card_counts_[index.value()];
+        void receiveCard(CardType type) noexcept {
+            switch (type) {
+                case CardType::Green:  ++green_; break;
+                case CardType::Yellow: ++yellow_; break;
+                case CardType::Red:    ++red_; break;
+                case CardType::Count:  break;
+            }
         }
 
         // formatted summary:
         std::string statsLine() const {
-            return std::format("{}G {}Y {}R {}PC",
-                greenCards(), yellowCards(), redCards(), penalty_corners_);
-        }    
+            std::ostringstream oss;
+            oss << green_ << "G "
+                << yellow_ << "Y "
+                << red_ << "R "
+                << penalty_corners_ << "PC";
+            return oss.str();
+        }  
 };
 
 // -----------------------------------------------------------------------------
@@ -87,7 +98,9 @@ class MatchEvent {
             quarter_(quarter), description_(std::move(description)) {}
 
         std::string toString() const {
-            return std::format("Q{} - {}", quarter_, description_);
+            std::ostringstream oss;
+            oss << "Q" << quarter_ << " - " << description_;
+            return oss.str();
         }
 };
 
@@ -102,70 +115,69 @@ class HockeyMatch {
         int current_quarter_ = 1;
         std::vector<MatchEvent> event_log_; // Chronological list of all events
 
-        void log(const std::string& event_description) {
+        void addEvent(const std::string& event_description) {
             event_log_.emplace_back(current_quarter_, event_description); // emplace_back constructs MatchEvent in-place
         }
 
-        void scoreGoalFor(Team& team, const std::string& scorer = "") {
+        void scoreGoalFor(Team& team, const std::string& scorer = {}) {
             team.scoreGoal();
             if (scorer.empty()) {
-                log(team.name() + " goal!");
+                addEvent(team.name() + " goal!");
             } else {
-                log(team.name() + " goal! (" + scorer + ")");
+                addEvent(team.name() + " goal! (" + scorer + ")");
             }
         }
 
         void showCardFor(Team& team, CardType type) {
             team.receiveCard(type);
-            std::string card_name = std::string(magic_enum::enum_name(type)); // Automatic display name from enum using magic_enum
-            log(card_name + " card - " + team.name());
+            addEvent(std::string(cardName(type)) + " card - " + team.name());
+
         }
 
         void awardPenaltyCornerFor(Team& team) {
             team.awardPenaltyCorner();
-            log("Penalty corner - " + team.name());
+            addEvent("Penalty corner - " + team.name());
         }
 
 
     public:
-
     // constructor:
     HockeyMatch(std::string home_name, std::string away_name)
-        : home_team_(std::move(home_name)),
-        away_team_(std::move(away_name)),
-        current_quarter_(1)  // explicitly initialize (good practice)
-            { log("=== Start of Q1 ==="); }
+        :   home_team_(std::move(home_name)),
+            away_team_(std::move(away_name)) {
+            addEvent("=== Start of Q1 ===");
+        }
 
 
         // --------------------- Const accessors ---------------------
-        const Team& home() const                            { return home_team_; }
-        const Team& away() const                            { return away_team_; }
-        int quarter() const                                 { return current_quarter_; }
+        const Team& home() const noexcept                            { return home_team_; }
+        const Team& away() const noexcept                           { return away_team_; }
+        int quarter() const noexcept                                 { return current_quarter_; }
         const std::vector<MatchEvent>& events() const       { return event_log_; }
 
 
         // --------------------- Game actions ---------------------
-        void goalForHome()                                  { scoreGoalFor(home_team_); }
-        void goalForAway()                                  { scoreGoalFor(away_team_); }
+        void goalForHome()  { scoreGoalFor(home_team_); }
+        void goalForAway()  { scoreGoalFor(away_team_); }
 
-        void cardForHome(CardType type)                     { showCardFor(home_team_, type); }
-        void cardForAway(CardType type)                     { showCardFor(away_team_, type); }
+        void cardForHome(CardType type) { showCardFor(home_team_, type); }
+        void cardForAway(CardType type) { showCardFor(away_team_, type); }
 
-        void penaltyCornerForHome()                         { awardPenaltyCornerFor(home_team_); }
-        void penaltyCornerForAway()                         { awardPenaltyCornerFor(away_team_); }
+        void penaltyCornerForHome() { awardPenaltyCornerFor(home_team_); }
+        void penaltyCornerForAway() { awardPenaltyCornerFor(away_team_); }
 
         // Returns false when match is over (after quarter 4)
         bool nextQuarter() {
-            if (current_quarter_ > 4) {
+            if (current_quarter_ > TOTAL_QUARTERS) {
                 return false;
             }
         
             // Always log the end of the current quarter
-            log("=== End of Q" + std::to_string(current_quarter_) + " ===");
+            addEvent("=== End of Q" + std::to_string(current_quarter_) + " ===");
         
-            if (current_quarter_ < 4) {
+            if (current_quarter_ < TOTAL_QUARTERS) {
                 ++current_quarter_;
-                log("=== Start of Q" + std::to_string(current_quarter_) + " ===");
+                addEvent("=== Start of Q" + std::to_string(current_quarter_) + " ===");
                 return true;
             }
         
@@ -192,8 +204,9 @@ class HockeyMatch {
 
         void printEventLog() const {
             std::cout << "\n--- Event Log ---\n";
-            if (event_log_.empty()) { std::cout << "No events yet.\n"; }
-            else {
+            if (event_log_.empty()) {
+                std::cout << "No events yet.\n";
+            } else {
                 for (const auto& event : event_log_) {
                     std::cout << event.toString() << "\n";
                 }
@@ -203,29 +216,33 @@ class HockeyMatch {
 };
 
 // display things
-void clearScreen() { // detects platform
+static void clearScreen() {
     #ifdef _WIN32
         std::system("cls");
     #else
-        std::cout << "\x1B[2J\x1B[H";
+        std::cout << "\x1B[2J\x1B[H" << std::flush;
     #endif
     }
 
 int main() {
     std::cout << "🏑 Welcome to Field Hockey Scoreboard Simulator 🏑\n\n";
 
-    std::string home_name, away_name;
+    std::string home_name;
+    std::string away_name;
+
     std::cout << "Enter home team: ";
     std::getline(std::cin, home_name);
     std::cout << "Enter away team: ";
     std::getline(std::cin, away_name);
 
-    HockeyMatch match(std::move(home_name), std::move(away_name));
+    if (home_name.empty()) { home_name = "Home"; }
+    if (away_name.empty()) { away_name = "Away"; }
 
+    HockeyMatch match(std::move(home_name), std::move(away_name));
 
     bool match_in_progress = true;
 
-    while (match.quarter() <= 4 && match_in_progress) {
+    while (match_in_progress && match.quarter() <= TOTAL_QUARTERS) {
         clearScreen();
         match.printScoreboard();
 
@@ -241,10 +258,10 @@ int main() {
                   << "9. Quit match early\n"
                   << "Choice: ";
 
-        int choice;
+        int choice = 0;
         if (!(std::cin >> choice)) {
             std::cin.clear();
-            ignoreLine()
+            ignoreLine();
             std::cout << "Invalid input. Please enter a number.\n";
             std::this_thread::sleep_for(std::chrono::seconds(1));
             continue;
@@ -253,11 +270,9 @@ int main() {
 
         switch (choice) {
             case 1:
-                match.goalForHome();
-                break;
+                match.goalForHome(); break;
             case 2:
-                match.goalForAway();
-                break;
+                match.goalForAway(); break;
             case 3: case 4: case 5: {
                 char side;
                 std::cout << "For which team? (h = " << match.home().name()
@@ -265,10 +280,9 @@ int main() {
                 std::cin >> side;
                 ignoreLine();
 
-                CardType type;
-                if (choice == 3) type = CardType::Green;
-                else if (choice == 4) type = CardType::Yellow;
-                else type = CardType::Red;
+                const CardType type = (choice == 3) ? CardType::Green
+                                    : (choice == 4) ? CardType::Yellow
+                                                    : CardType::Red;
 
                 if (side == 'h' || side == 'H')
                     match.cardForHome(type);
@@ -281,7 +295,7 @@ int main() {
                 break;
             }
             case 6: {
-                char side;
+                char side = '\0';
                 std::cout << "For which team? (h/a): ";
                 std::cin >> side;
                 ignoreLine();
@@ -298,7 +312,7 @@ int main() {
             }
             case 7:
                 if (!match.nextQuarter()) {
-                    goto end_match;
+                    match_in_progress = false;
                 }
                 break;
             case 8:
@@ -310,11 +324,12 @@ int main() {
             case 9:
                 std::cout << "Ending match early...\n";
                 std::this_thread::sleep_for(std::chrono::seconds(1));
-                match_in_progress = false;  // clean exit
+                match_in_progress = false;
                 break;
             default:
                 std::cout << "Invalid choice. Please try again.\n";
                 std::this_thread::sleep_for(std::chrono::seconds(1));
+                break;
         }
     }
 
